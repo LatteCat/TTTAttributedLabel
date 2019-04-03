@@ -1027,7 +1027,27 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
                 if ([results count] > 0) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         if ([[strongSelf.attributedText string] isEqualToString:[(NSAttributedString *)text string]]) {
-                            [strongSelf addLinksWithTextCheckingResults:results attributes:strongSelf.linkAttributes];
+                            // 判断每一个 NSTextCheckingResult 的 result 是否与已经存在的 link 里面的是否有冲突，如果存在冲突则不添加系统的连接
+                            NSArray<NSTextCheckingResult *> *existResults = [strongSelf.linkModels valueForKeyPath:@"result"];
+                            if (existResults.count) {
+                                NSMutableArray<NSTextCheckingResult *> *validResults = [NSMutableArray arrayWithCapacity:results.count];
+                                for (NSTextCheckingResult *result in results) {
+                                    __block BOOL conflict = NO;
+                                    [existResults enumerateObjectsUsingBlock:^(NSTextCheckingResult * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+                                        if (NSIntersectionRange(obj.range, result.range).length) {
+                                            conflict = YES;
+                                        }
+                                    }];
+                                    if (!conflict) {
+                                        [validResults addObject:result];
+                                    }
+                                }
+                                if (validResults.count) {
+                                    [strongSelf addLinksWithTextCheckingResults:validResults attributes:strongSelf.linkAttributes];
+                                }
+                            } else {
+                                [strongSelf addLinksWithTextCheckingResults:results attributes:strongSelf.linkAttributes];
+                            }
                         }
                     });
                 }
